@@ -1,0 +1,128 @@
+[
+  {
+    "question": "What are the main segments Amazon reports?",
+    "naive": {
+      "top_score": 0.5895,
+      "pages": [
+        null,
+        null,
+        null
+      ],
+      "preview": "tional excellence, and long-term thinking. In each of our segments, we serve our primary customer sets, consisting of consumers, sellers, developers, enterprises, and content creat"
+    },
+    "smart": {
+      "top_score": 0.5715,
+      "pages": [
+        3,
+        3,
+        3
+      ],
+      "preview": "to be Earth’s most customer-centric company. We are guided by four principles: customer obsession rather than competitor focus, passion for invention, commitment to operational exc"
+    }
+  },
+  {
+    "question": "What competitive risks does Amazon disclose?",
+    "naive": {
+      "top_score": 0.5495,
+      "pages": [
+        null,
+        null,
+        null
+      ],
+      "preview": ", financial condition, operating results (including components of our financial results), cash flows, liquidity, and stock price. These risk factors do not identify all risks that "
+    },
+    "smart": {
+      "top_score": 0.5113,
+      "pages": [
+        8,
+        7,
+        6
+      ],
+      "preview": "grow, competition will intensify, including through adoption of evolving business models. Local companies may have a substantial competitive advantage because of their greater unde"
+    }
+  },
+  {
+    "question": "How much leased office square footage does Amazon have?",
+    "naive": {
+      "top_score": 0.615,
+      "pages": [
+        null,
+        null,
+        null
+      ],
+      "preview": "s includes 564 North America and 7 International stores as of December 31, 2019. Leased Square Owned Square Footage Segment Footage (1) (1) North America 199,473 1,983 Internationa"
+    },
+    "smart": {
+      "top_score": 0.6422,
+      "pages": [
+        16,
+        3,
+        16
+      ],
+      "preview": "Item 2. Properties As of December 31, 2019, we operated the following facilities (in thousands): Leased Square Description of Use Footage (1) Owned Square Footage Location Office s"
+    }
+  },
+  {
+    "question": "Where is Amazon common stock traded?",
+    "naive": {
+      "top_score": 0.5547,
+      "pages": [
+        null,
+        null,
+        null
+      ],
+      "preview": "formation Our common stock is traded on the Nasdaq Global Select Market under the symbol “AMZN.” Holders As of January 22, 2020, there were 3,169 shareholders of record of our comm"
+    },
+    "smart": {
+      "top_score": 0.6383,
+      "pages": [
+        17,
+        3,
+        1
+      ],
+      "preview": "PART II Item 5. Market for the Registrant’s Common Stock, Related Shareholder Matters, and Issuer Purchases of Equity Securities Market Information Our common stock is traded on th"
+    }
+  },
+  {
+    "question": "What were total net sales in the selected financial data?",
+    "naive": {
+      "top_score": 0.4506,
+      "pages": [
+        null,
+        null,
+        null
+      ],
+      "preview": "tional excellence, and long-term thinking. In each of our segments, we serve our primary customer sets, consisting of consumers, sellers, developers, enterprises, and content creat"
+    },
+    "smart": {
+      "top_score": 0.5651,
+      "pages": [
+        18,
+        3,
+        3
+      ],
+      "preview": "Item 6. Selected Consolidated Financial Data The following selected consolidated financial data should be read in conjunction with the consolidated financial statements and the not"
+    }
+  },
+  {
+    "question": "What risks relate to international operations?",
+    "naive": {
+      "top_score": 0.6464,
+      "pages": [
+        null,
+        null,
+        null
+      ],
+      "preview": "erations Expose Us to a Number of Risks Our international activities are significant to our revenues and profits, and we plan to further expand internationally. In certain internat"
+    },
+    "smart": {
+      "top_score": 0.6119,
+      "pages": [
+        7,
+        7,
+        10
+      ],
+      "preview": "due; - the extent to which use of our services is affected by spyware, viruses, phishing and other spam emails, denial of service attacks, data theft, computer intrusions, outages,"
+    }
+  }
+]
