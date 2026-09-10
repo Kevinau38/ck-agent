@@ -42,7 +42,7 @@ python data\seed_db.py               # create the mock order database
 ```
 
 `data\` holds generated artefacts and is gitignored, so a fresh clone must run
-the three build steps above before the agent will start.
+the four build steps above before the agent will start.
 
 ## Run
 
