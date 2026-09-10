@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CK Support Agent</title>
+<style>
+  :root { --bg:#f7f7f5; --panel:#fff; --line:#e3e3df; --ink:#1f1f1d; --muted:#6b6b66; --accent:#1d6f57; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+         font:16px/1.6 -apple-system,Segoe UI,Roboto,sans-serif; }
+  header { padding:16px 24px; border-bottom:1px solid var(--line); background:var(--panel);
+           display:flex; align-items:center; gap:12px; }
+  header h1 { margin:0; font-size:16px; font-weight:600; }
+  header span { color:var(--muted); font-size:13px; }
+  header button { margin-left:auto; padding:6px 14px; border:1px solid var(--line);
+                  background:var(--panel); border-radius:6px; cursor:pointer; font-size:13px; }
+  main { max-width:780px; margin:0 auto; padding:24px 16px 140px; }
+  .msg { margin-bottom:20px; display:flex; gap:12px; }
+  .who { flex:0 0 64px; font-size:13px; color:var(--muted); padding-top:2px; }
+  .body { flex:1; white-space:pre-wrap; word-wrap:break-word; }
+  .user .body { background:var(--panel); border:1px solid var(--line);
+                border-radius:10px; padding:10px 14px; }
+  .tool { font-size:13px; color:var(--accent); font-style:italic; }
+  .err { color:#a32d2d; }
+  footer { position:fixed; bottom:0; left:0; right:0; background:var(--panel);
+           border-top:1px solid var(--line); padding:14px 16px; }
+  .row { max-width:780px; margin:0 auto; display:flex; gap:10px; }
+  input { flex:1; padding:11px 14px; border:1px solid var(--line); border-radius:8px;
+          font-size:15px; font-family:inherit; }
+  input:focus { outline:2px solid var(--accent); outline-offset:-1px; }
+  button.send { padding:11px 22px; border:0; border-radius:8px; background:var(--accent);
+                color:#fff; font-size:15px; cursor:pointer; }
+  button.send:disabled { opacity:.5; cursor:default; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>CK Support Agent</h1>
+  <span>Ask about the company, or check an order</span>
+  <button onclick="resetChat()">New chat</button>
+</header>
+
+<main id="log"></main>
+
+<footer>
+  <div class="row">
+    <input id="input" placeholder="Type a message and press Enter" autocomplete="off">
+    <button class="send" id="send">Send</button>
+  </div>
+</footer>
+
+<script>
+let sessionId = null;
+const log = document.getElementById('log');
+const input = document.getElementById('input');
+const send = document.getElementById('send');
+
+function addMsg(who, cls) {
+  const wrap = document.createElement('div');
+  wrap.className = 'msg ' + (cls || '');
+  wrap.innerHTML = '<div class="who">' + who + '</div><div class="body"></div>';
+  log.appendChild(wrap);
+  window.scrollTo(0, document.body.scrollHeight);
+  return wrap.querySelector('.body');
+}
+
+async function ask(text) {
+  addMsg('You', 'user').textContent = text;
+  const out = addMsg('Agent');
+  let toolLine = null;
+
+  const res = await fetch('/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message: text, session_id: sessionId })
+  });
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    const parts = buffer.split('\n\n');
+    buffer = parts.pop();
+
+    for (const part of parts) {
+      if (!part.startsWith('data: ')) continue;
+      const ev = JSON.parse(part.slice(6));
+
+      if (ev.type === 'session') {
+        sessionId = ev.id;
+      } else if (ev.type === 'tool') {
+        if (!toolLine) toolLine = addMsg('', 'tool');
+        toolLine.textContent += (toolLine.textContent ? ', ' : 'running ') + ev.data;
+      } else if (ev.type === 'text') {
+        out.textContent += ev.data;
+        window.scrollTo(0, document.body.scrollHeight);
+      } else if (ev.type === 'error') {
+        out.className = 'body err';
+        out.textContent = ev.data;
+      }
+    }
+  }
+}
+
+async function submit() {
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  send.disabled = true;
+  try { await ask(text); }
+  catch (e) { addMsg('Agent', 'err').textContent = String(e); }
+  finally { send.disabled = false; input.focus(); }
+}
+
+async function resetChat() {
+  if (sessionId) {
+    await fetch('/reset', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: '', session_id: sessionId })
+    });
+  }
+  sessionId = null;
+  log.innerHTML = '';
+  input.focus();
+}
+
+send.onclick = submit;
+input.onkeydown = e => { if (e.key === 'Enter') submit(); };
+input.focus();
+</script>
+</body>
+</html>
