@@ -9,7 +9,6 @@ moves network. Synthesis works without it; deployment does not.
 import os
 
 import aws_cdk as cdk
-
 from ck_agent_stack import CkAgentStack
 
 app = cdk.App()
