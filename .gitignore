@@ -6,3 +6,4 @@ data/*.faiss
 data/pages.json
 data/chunks_*.json
 data/*.db
+infra/cdk.out/
