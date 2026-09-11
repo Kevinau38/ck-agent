@@ -17,7 +17,6 @@ import os
 import boto3
 from botocore.config import Config
 from dotenv import load_dotenv
-
 from tools import TOOL_SPECS, Session, run_tool
 
 load_dotenv()

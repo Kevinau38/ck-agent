@@ -9,9 +9,8 @@ would favour longer chunks.
 from __future__ import annotations
 
 import json
-from pathlib import Path
-
 import sys
+from pathlib import Path
 
 import faiss
 import numpy as np
@@ -19,6 +18,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from chunk import chunk_naive, chunk_smart  # noqa: E402
+
 from embed import embed_documents  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]

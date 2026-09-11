@@ -1,0 +1,17 @@
+# Lint configuration.
+#
+# The selected set is errors, pyflakes, warnings and import sorting. That
+# catches real problems - undefined names, unused imports, syntax issues -
+# without enforcing stylistic opinions that would add churn without adding
+# correctness.
+#
+# E402 is ignored because several modules extend sys.path before importing
+# sibling packages, which is the mechanism that lets the scripts run from the
+# project root on Windows without installing the project as a package.
+
+line-length = 100
+exclude = [".venv", "__pycache__"]
+
+[lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E402"]

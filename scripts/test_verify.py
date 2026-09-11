@@ -10,8 +10,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "agent"))
 
-from verify import (get_shipment, list_orders, normalise_name, normalise_ssn,  # noqa: E402
-                    parse_dob, verify_user)
+from verify import (  # noqa: E402
+    get_shipment,
+    list_orders,
+    normalise_name,
+    normalise_ssn,
+    parse_dob,
+    verify_user,
+)
 
 passed = failed = 0
 
@@ -40,29 +46,34 @@ for text in ["Jan 5 1990", "January 5th, 1990", "I was born on January 5th, 1990
 check("'05/01/1990' doc duoc ca hai kieu", len(parse_dob("05/01/1990")), 2)
 check("rac", parse_dob("khong phai ngay thang"), [])
 
+EMAIL = "jordan.reed@ck1.com"
+NAME = "Jordan Reed"
+NOBODY = "nobody@ck9.com"
+
 print("\n3. Email - phai khop mau @ck<so>.com")
 for bad in ["jordan.reed@gmail.com", "jordan.reed@ck.com", "jordan.reed@ckabc.com"]:
-    check(f"tu choi {bad}", verify_user(bad, "Jordan Reed", "4821", "Jan 5 1990")["verified"], False)
+    check(f"tu choi {bad}", verify_user(bad, NAME, "4821", "Jan 5 1990")["verified"], False)
 
 print("\n4. Ho ten - truong thu tu theo Level 100")
 check("bo dau cau va khoang trang thua", normalise_name("Jordan  Reed."), "jordan reed")
-check("sai ten", verify_user("jordan.reed@ck1.com", "Someone Else", "4821", "1990-01-05")["verified"], False)
-check("thieu ten", verify_user("jordan.reed@ck1.com", "", "4821", "1990-01-05")["verified"], False)
+check("sai ten", verify_user(EMAIL, "Someone Else", "4821", "1990-01-05")["verified"], False)
+check("thieu ten", verify_user(EMAIL, "", "4821", "1990-01-05")["verified"], False)
 
 print("\n5. Xac minh day du")
-ok = verify_user("jordan.reed@ck1.com", "Jordan Reed", "4821", "I was born on January 5th, 1990")
+ok = verify_user(EMAIL, NAME, "4821", "I was born on January 5th, 1990")
 check("dung ca bon truong", ok["verified"], True)
 check("tra ve dung user", ok.get("user_id"), "U001")
-check("hoa thuong khong anh huong", verify_user("JORDAN.REED@CK1.COM", "jordan  reed", "4821", "1990-01-05")["verified"], True)
-check("sai SSN", verify_user("jordan.reed@ck1.com", "Jordan Reed", "0000", "1990-01-05")["verified"], False)
-check("sai DOB", verify_user("jordan.reed@ck1.com", "Jordan Reed", "4821", "1991-01-05")["verified"], False)
-check("email khong ton tai", verify_user("nobody@ck9.com", "Jordan Reed", "4821", "1990-01-05")["verified"], False)
+upper = verify_user("JORDAN.REED@CK1.COM", "jordan  reed", "4821", "1990-01-05")
+check("hoa thuong khong anh huong", upper["verified"], True)
+check("sai SSN", verify_user(EMAIL, NAME, "0000", "1990-01-05")["verified"], False)
+check("sai DOB", verify_user(EMAIL, NAME, "4821", "1991-01-05")["verified"], False)
+check("email khong ton tai", verify_user(NOBODY, NAME, "4821", "1990-01-05")["verified"], False)
 
 print("\n6. Khong ro ri du lieu khi that bai")
-bad = verify_user("jordan.reed@ck1.com", "Jordan Reed", "0000", "1990-01-05")
+bad = verify_user(EMAIL, NAME, "0000", "1990-01-05")
 check("khong tra ve user_id", "user_id" in bad, False)
 check("cung mot thong bao cho email sai va SSN sai",
-      verify_user("nobody@ck9.com", "Nobody At All", "1111", "1990-01-05")["reason"] == bad["reason"], True)
+      verify_user(NOBODY, "Nobody", "1111", "1990-01-05")["reason"] == bad["reason"], True)
 
 print("\n7. Don hang")
 orders = list_orders("U001")
