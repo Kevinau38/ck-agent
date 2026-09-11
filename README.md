@@ -1,5 +1,7 @@
 # CK Agent — Solution Engineer Intern Assignment
 
+[![CI](https://github.com/Kevinau38/ck-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/Kevinau38/ck-agent/actions/workflows/ci.yml)
+
 Agentic conversational system for a US e-commerce company. Two capabilities:
 RAG over an internal document, and an order-status workflow gated behind user
 verification.
