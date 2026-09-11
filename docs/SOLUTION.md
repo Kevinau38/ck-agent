@@ -10,12 +10,16 @@ Author: Tran Duc Anh · Cloud Kinetics Solution Engineer Intern assignment
 
 ## 1. Architecture
 
-### 1.1 What runs today
+The system exists in three forms: how it runs on a developer machine, how it
+was deployed, and what it should become at production scale. The distance
+between the second and the third is the interesting part.
 
-![Current implementation](architecture-current.png)
+### 1.1 Local development
 
-Everything runs locally except three calls to Amazon Bedrock in
-`ap-southeast-1`:
+![Local development](architecture-local.png)
+
+Agent, FAISS index and SQLite all run on the developer machine. Bedrock is the
+only cloud dependency, reached with three calls:
 
 | Call | Purpose |
 | --- | --- |
@@ -23,23 +27,47 @@ Everything runs locally except three calls to Amazon Bedrock in
 | `InvokeModel`, `input_type=search_document` | embedding 117 chunks, offline, once |
 | `InvokeModel`, `input_type=search_query` | embedding each user question |
 
-The vector index is a local FAISS file, order data is a local SQLite database,
-and conversation state is a Python object held for the life of one session.
-Nothing runs on a schedule and nothing is billed by the hour.
+### 1.2 Deployed
 
-### 1.2 What production would look like
+![Deployed on EC2](architecture-deployed.png)
+
+Provisioned with CDK: 16 resources, `cdk deploy` to standing in under three
+minutes, plus four minutes for the instance to install dependencies, build the
+index and start the service under systemd.
+
+Three choices are visible on the diagram and each was deliberate:
+
+**No NAT Gateway.** A CDK `Vpc` with default settings provisions one, billed
+hourly whether or not anything uses it. The instance sits in a public subnet
+instead and reaches Bedrock directly.
+
+**No load balancer.** An ALB costs more per hour than the instance behind it.
+With one instance and one viewer there is nothing to balance.
+
+**No access keys on the host.** Credentials come from an instance role through
+the metadata service and rotate on their own. The role carries two actions,
+`bedrock:InvokeModel` and `bedrock:InvokeModelWithResponseStream`, rather than
+`bedrock:*`. This is the clearest security improvement over local development,
+where the same calls are made with a long-lived access key on disk.
+
+The security group admits one source address on one port. That keeps a
+paid Bedrock endpoint off the open internet, and it is also why the deployment
+is not left running for a reviewer to visit: opening it to everyone would mean
+anyone who scans the port can spend money on the account. The recording serves
+that purpose instead, and the stack is destroyed after use.
+
+### 1.3 Proposed production
 
 ![Proposed production](architecture-proposed.png)
 
-This diagram is a design proposal for Levels 200 and 300. **None of it is
-deployed.** It is included because the assignment asks for architecture and
-trade-offs, not because it was built.
+**Not implemented.** Included because the assignment asks for architecture and
+trade-offs, and because naming the threshold at which the deployed shape stops
+being adequate is more useful than presenting it as finished.
 
-### 1.3 Layers
+### 1.4 Layers
 
 **Ingestion (offline).** `pdfplumber` reads text and tables per page, chunks
 are cleaned and cut, Bedrock embeds them, FAISS stores normalised vectors.
-Run once; re-run when the source document changes.
 
 **Retrieval.** A question is embedded with `search_query`, matched by cosine
 similarity, and the top 4 chunks are returned with their page numbers.
@@ -52,9 +80,7 @@ calls Converse again. Bounded at 6 rounds.
 `get_order_status`. Each one re-checks session state before touching data.
 
 **Interface.** A CLI for development, and FastAPI with SSE streaming plus a
-single-page chat UI for the demo.
-
----
+single-page chat UI.
 
 ## 2. Design decisions
 
@@ -146,6 +172,26 @@ list only models already marked Legacy — invoking `apac.anthropic.claude-sonne
 returns an end-of-life error. Since this workload handles US Social Security
 numbers, a profile that cannot bound where requests travel is a poor fit, and
 `us-east-1` offers US-scoped profiles.
+
+### 2.8 EC2 rather than Fargate for the deployment
+
+The production diagram shows ECS Fargate; the deployment is a single EC2
+instance. The gap is deliberate and the cost of it is worth stating plainly.
+
+What is given up: the host must be patched and the process supervised by hand,
+one instance is one failure domain, there is no autoscaling, and a new version
+means downtime rather than a rolling replacement. There is also no HTTPS,
+because there is no load balancer to terminate TLS on.
+
+What is gained: no container image, no registry, no task definitions, no
+multi-tier VPC, and roughly a fifth of the hourly cost. For a proof of concept
+that is visited by one person for a few hours, none of the four losses above
+actually bite.
+
+The threshold is availability rather than load. The moment the system needs to
+survive an instance failure, or to deploy without a gap in service, Fargate
+behind an ALB stops being overhead and starts being the cheaper option.
+
 
 ---
 
@@ -307,19 +353,151 @@ appear verbatim in the retrieved chunks. It is not implemented; see section 6.
 
 ---
 
-## 6. Limitations and what I would do next
+## 6. Operating at scale
 
-**Not deployed.** The system runs locally and is demonstrated by recording, an
-option the brief permits. The CDK stack and CI pipeline were scoped but the
-deployment itself was not attempted within the time available.
+Nothing in this section is implemented. It is the design for the parts of the
+system that only matter once more than one person uses it.
+
+### 6.1 Conversation data model
+
+Conversation history is append-only, read by session, and expires. That is a
+key-value access pattern, not a relational one, which is why it belongs in
+DynamoDB rather than alongside the orders.
+
+**Schema.** One table, `conversations`:
+
+| Attribute | Type | Role |
+| --- | --- | --- |
+| `session_id` | string | partition key |
+| `turn_ts` | number | sort key, epoch milliseconds |
+| `role` | string | `user`, `assistant` or `tool` |
+| `content` | string | the message, JSON for tool blocks |
+| `tool_name` | string | present on tool turns only |
+| `verified` | boolean | whether the session was verified at this point |
+| `expires_at` | number | TTL attribute, epoch seconds |
+
+**Indexing.** The partition key is the session, so reading one conversation is
+a single `Query` with no index and no scan. Sorting by `turn_ts` returns turns
+in order and makes "last N turns" a bounded read rather than a full fetch.
+
+A global secondary index on `user_id` would be needed to answer "show me every
+conversation this customer has had", which support tooling would want. It is
+not in the base design because nothing in the assignment asks for it and a GSI
+is not free.
+
+**Scalability.** Partitioning by session spreads writes evenly, since sessions
+are independent and short. The risk is the opposite of a hot partition: many
+small partitions, which DynamoDB handles well. On-demand capacity suits a
+workload with no predictable shape; provisioned capacity would be cheaper only
+once traffic is steady enough to forecast.
+
+**What must not be stored.** Raw SSN and date of birth never enter this table.
+Verification writes a boolean and a user id, nothing more. A conversation log
+that captured the verification turns verbatim would quietly become the most
+sensitive store in the system, and it would be the one with the loosest
+retention.
+
+**Retention.** TTL set to 30 days on write. DynamoDB deletes expired items
+without a scheduled job, which makes the retention policy a property of the
+data rather than something an operator has to remember.
+
+### 6.2 Integration with the agent
+
+Today `Session` and the `messages` list live in process memory. That is honest
+for a demo and wrong for production: a restart drops every conversation, and a
+second instance behind a load balancer cannot see the first one's state.
+
+**On write.** Each turn is appended as it completes rather than at the end of
+the conversation, so an interrupted session is not lost. Tool results are
+written as their own turns, which is what allows a later turn to know that
+`list_my_orders` was called without re-running it.
+
+**On read.** A returning `session_id` triggers one `Query` limited to the last
+20 turns, which are replayed into the `messages` list. Twenty is a working
+number, not a measured one: enough for the multi-turn references the agent has
+to resolve, short enough to bound the input token cost.
+
+**What is deliberately not restored.** `verified_user_id` is rebuilt from the
+`verified` flag and the user id, never from the model's reading of the
+transcript. Restoring verification by letting the model infer it from history
+would move a security decision back into the prompt, which section 5 shows is
+the wrong place for it.
+
+**Cost consequence.** Observed usage is 302k input tokens against 11k output,
+a ratio of 27 to 1, because every tool round resends the whole history plus the
+retrieved passages. Conversation history is therefore a cost lever as much as a
+storage one: the limit on replayed turns matters more to the bill than anything
+about response length.
+
+### 6.3 Observability
+
+The question is not what can be logged but what would have shortened the three
+defects in section 5. Each signal below is there because something specific
+would have surfaced faster.
+
+**Structured logs**, one JSON line per turn: `session_id`, tool names called in
+order, per-tool latency, `stopReason`, token counts, and whether the turn ended
+in a refusal. The order of tool calls is the field that matters most. The
+missing `list_my_orders` defect was found by reading that sequence by hand at
+the end of a session; as a logged field it would have been a query.
+
+**Metrics**, derived from those logs:
+
+| Metric | Why |
+| --- | --- |
+| Tool call counts by name | `get_order_status` without a preceding `list_my_orders` is the defect from 5.1 |
+| Verification failure rate | A rise means either an attack or a broken parser |
+| Lockouts after three attempts | Distinguishes those two cases |
+| Retrieval top-1 score distribution | A drift downwards means the index no longer matches the questions |
+| Answers with no citation | Direct proxy for ungrounded output |
+| Tool round count per turn | Approaching the cap of 6 means the model is looping |
+| Input tokens per turn | The cost driver, given the 27:1 ratio |
+
+**Traces.** One span per turn with child spans per tool call, so a slow reply
+can be attributed to embedding, vector search, the database or the model
+without guessing.
+
+**Alarms.** Verification failure rate above baseline, p99 turn latency, error
+rate on Bedrock calls, and daily spend against a budget.
+
+**What is excluded on purpose.** Message content is not logged by default.
+Customers type SSNs and dates of birth into this system, and a debug log that
+captured them would be a breach waiting for a log aggregator to be misconfigured.
+Content logging would be a per-session opt-in with its own short retention.
+
+### 6.4 Request classification
+
+Classification already happens implicitly: the model chooses between
+`search_documents` and the order tools, and it chose correctly in every
+scenario tested.
+
+Making it explicit would buy predictability rather than accuracy. A rule-based
+prefilter could route obvious cases without a model call at all, an order ID
+pattern or an `@ck` address being the clearest examples, and fall through to
+the model when no rule matches. That would cut cost and latency on the common
+path and make routing decisions auditable, which implicit classification is
+not.
+
+It is left undone because the implicit routing has not yet failed, and
+optimising a path that works is a worse use of the remaining time than the
+output check described in 5.3.
+
+---
+
+## 7. Limitations and what I would do next
+
+**The deployment is not left running.** The security group admits one address,
+so a reviewer could not reach it anyway, and opening it would expose a metered
+Bedrock endpoint to anyone scanning the port. `cdk deploy` reproduces it in
+about three minutes; the recording covers the rest.
 
 **No output validation.** Section 5.3 describes the gap and the fix. It was
 left undone deliberately: the assignment does not require numeric verification,
 and the time was better spent on scored items.
 
 **Session state is in process memory.** A restart loses every session and a
-second instance would not see the first one's state. The production design
-replaces this with DynamoDB and a TTL.
+second instance would not see the first one's state. Section 6.2 gives the
+DynamoDB design that replaces it.
 
 **Table detection is imprecise.** `pdfplumber` reports nine tables on page 5,
 which appears to be column-aligned prose misread as tabular. It adds noise
@@ -330,7 +508,7 @@ difference, not enough to be a benchmark. A real evaluation would need a
 labelled set with judgements on answer correctness, not similarity scores,
 which section 5.2 shows are a poor proxy.
 
-Given more time, in priority order: the output check from 5.3, DynamoDB-backed
-sessions, a CDK stack validated with `cdk synth`, Bedrock Guardrails as a
-second PII barrier, and a migration to Strands and AgentCore to pick up managed
-memory and observability.
+Given more time, in priority order: the output check from 5.3, the DynamoDB
+conversation store from 6.2, the structured logging from 6.3, Bedrock
+Guardrails as a second PII barrier, and a migration to Strands and AgentCore to
+pick up managed memory and session handling.
