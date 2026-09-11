@@ -57,6 +57,16 @@ const log = document.getElementById('log');
 const input = document.getElementById('input');
 const send = document.getElementById('send');
 
+function escapeHtml(t) {
+  return t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// Escape first, then convert **bold**. Doing it in this order means text the
+// model produces can never inject markup.
+function render(raw) {
+  return escapeHtml(raw).replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
+}
+
 function addMsg(who, cls) {
   const wrap = document.createElement('div');
   wrap.className = 'msg ' + (cls || '');
@@ -70,6 +80,7 @@ async function ask(text) {
   addMsg('You', 'user').textContent = text;
   const out = addMsg('Agent');
   let toolLine = null;
+  let raw = '';
 
   const res = await fetch('/chat', {
     method: 'POST',
@@ -99,7 +110,8 @@ async function ask(text) {
         if (!toolLine) toolLine = addMsg('', 'tool');
         toolLine.textContent += (toolLine.textContent ? ', ' : 'running ') + ev.data;
       } else if (ev.type === 'text') {
-        out.textContent += ev.data;
+        raw += ev.data;
+        out.innerHTML = render(raw);
         window.scrollTo(0, document.body.scrollHeight);
       } else if (ev.type === 'error') {
         out.className = 'body err';

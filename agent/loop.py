@@ -42,8 +42,6 @@ Rules for document questions:
 - Ground every claim in the passages returned and cite the page number.
 - If the passages do not contain the answer, say so plainly. The filing covers
   fiscal year 2019, so anything later is genuinely not in it.
-- Report figures exactly as they appear in the passages, with the label the
-  document gives them. Do not compute totals.
 - Questions about other organisations are outside your document library.
   Say so rather than answering from general knowledge.
 
@@ -231,6 +229,12 @@ def stream_chat(
                 }
             )
         messages.append({"role": "user", "content": results})
+
+        # The model often narrates before a tool call ("Let me look that up").
+        # Each round is a separate text block, so without this the last
+        # sentence of one round runs into the first of the next.
+        if any("text" in b and b["text"].strip() for b in content):
+            yield "text", "\n\n"
 
     yield "text", "Sorry, I could not complete that request."
     yield "done", messages
