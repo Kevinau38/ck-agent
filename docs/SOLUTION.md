@@ -8,6 +8,47 @@ Author: Tran Duc Anh · Cloud Kinetics Solution Engineer Intern assignment
 
 ---
 
+## 0. Assumptions
+
+The brief invites reasonable assumptions provided they are documented. These
+are the five that shaped the build.
+
+**The brief specifies two different verification field sets.** The Context
+section lists email, last 4 of SSN and date of birth; Level 100 lists full
+name, last 4 of SSN and date of birth. Rather than satisfy one reading and
+fail the other, all four fields are collected. Email is the lookup key because
+it is the only field with a stated format rule.
+
+**The company is treated as Amazon.com, Inc.** The brief describes a US
+e-commerce company and supplies Amazon's Form 10-K as the internal document.
+Leaving the identity generic caused a real failure: asked about risk factors,
+the agent replied that it had no information about Amazon and never searched,
+because the prompt described a different company from the one named in the
+question. Amazon is a US e-commerce company, so naming it resolves the conflict
+without contradicting the brief.
+
+**Ambiguous dates are read both ways.** The brief lists `Jan 5 1990`,
+`05/01/1990` and `I was born on January 5th, 1990` as equivalent, which reads
+the middle one as day-first, while a US customer would normally mean May 1st.
+Both readings are computed and either may match. This is safe because
+verification compares against a value already on file: an ambiguous input can
+confirm an identity, it cannot invent one.
+
+**Two files were supplied: the brief and a PDF.** The document is a Form 10-K
+filed with the SEC, not the policies or FAQs the brief gives as examples, so
+the demonstration questions are about business segments, risk factors,
+properties and stock rather than returns policies.
+
+**No Dataset folder was received.** Level 300 item 5 refers to sample data in a
+Dataset folder; only the 10-K arrived. That item is therefore built on the 10-K
+itself, which is sufficient to demonstrate the point, and the measurement in
+section 5.2 uses it. Likewise no customer or order data was provided, so
+`data/seed_db.py` generates it: five users, eight orders, eight shipments, with
+one user holding three orders so the disambiguation path can be exercised. The
+SSNs are not valid numbers.
+
+---
+
 ## 1. Architecture
 
 The system exists in three forms: how it runs on a developer machine, how it
