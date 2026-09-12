@@ -234,6 +234,43 @@ survive an instance failure, or to deploy without a gap in service, Fargate
 behind an ALB stops being overhead and starts being the cheaper option.
 
 
+### 2.9 Cost
+
+The brief asks for cost awareness, so here are the measured numbers rather than
+an assurance. Figures cover the entire build: every test run, two full index
+rebuilds, and the deployment.
+
+| Item | Usage | Cost |
+| --- | --- | --- |
+| Claude Haiku 4.5, input | 387,000 tokens | USD 0.39 |
+| Claude Haiku 4.5, output | 14,000 tokens | USD 0.07 |
+| Cohere embeddings | 90,000 tokens | USD 0.01 |
+| EC2 t3.micro | 0.438 hours | USD 0.01 |
+| EBS, Elastic IP, data transfer, S3, CloudFormation | | USD 0.00 |
+| Tax | | USD 0.05 |
+| **Total** | | **USD 0.53** |
+
+Two things stand out.
+
+**The deployment was not the expense.** Running the instance cost one cent,
+less than a single afternoon of testing the agent. The cost of this system is
+the model, not the infrastructure it sits on, which is the opposite of the
+intuition that deploying something is the expensive step.
+
+**Input dominates output 28 to 1.** Every tool round resends the whole
+conversation plus the retrieved passages, so the bill is driven by how much
+context is replayed rather than how long the answers are. Trimming replies
+would save almost nothing; capping replayed turns, as section 6.2 describes, is
+the lever that matters.
+
+Two larger costs were avoided by design rather than by luck. A CDK `Vpc` with
+default settings provisions a NAT Gateway, billed hourly whether or not
+anything uses it; `nat_gateways=0` removes it. Bedrock Knowledge Bases
+provision OpenSearch Serverless by default, which bills per OCU with a floor,
+so an idle proof of concept still accrues charges; a local FAISS index does
+not. Either would have cost more in a week than everything in the table above.
+
+
 ---
 
 ## 3. Implementation details
@@ -302,6 +339,14 @@ The agent itself was exercised manually against scripted scenarios: document
 questions, order questions before verification, a jailbreak attempt,
 out-of-order and combined field entry, invalid input, and multi-turn reference
 ("what about the keyboard one?").
+
+
+The deployed instance was verified separately, since the streaming path and the
+instance role are not exercised locally. On EC2: a document question returning
+page citations, the full four-field verification flow, the order list and a
+status lookup, and the same jailbreak attempt refused. That run also confirmed
+the instance role works, because there are no access keys on the host and the
+Bedrock calls succeeded anyway.
 
 Citations were checked by hand against the source PDF. The agent cited page 6
 for risk factors, page 3 for business segments and page 16 for the properties
