@@ -6,6 +6,25 @@ Agentic conversational system for a US e-commerce company. Two capabilities:
 RAG over an internal document, and an order-status workflow gated behind user
 verification.
 
+## Architecture
+
+The system is presented in three states: how it runs locally, how it was
+deployed to AWS, and where it should go at production scale.
+
+### Local development
+
+![Local development environment](docs/architecture-local.png)
+
+### Deployed on EC2
+
+![Deployed on EC2](docs/architecture-deployed.png)
+
+### Proposed production (design only)
+
+![Proposed production architecture](docs/architecture-proposed.png)
+
+Full technical write-up: [docs/SOLUTION.md](docs/SOLUTION.md)
+
 ## Stack
 
 | Layer | Choice |
@@ -60,6 +79,27 @@ python scripts\test_verify.py        # 34 assertions on verification and access
 python scripts\compare_retrieval.py  # retrieval quality, naive vs preprocessed
 ```
 
+## AWS deployment
+
+Infrastructure is defined as code with AWS CDK in Python. A single
+`cdk deploy` creates 14 resources across network, security, and compute.
+
+```powershell
+cd infra
+cdk deploy -c allowed_ip=<your-ip>/32
+```
+
+| Aspect | Design |
+| --- | --- |
+| Compute | EC2 t3.micro in a public subnet |
+| Network | VPC with Internet Gateway, no NAT Gateway |
+| Access | Security group restricted to one source address |
+| Credentials | IAM instance role, no access keys on the host |
+| Permissions | `bedrock:InvokeModel` and `InvokeModelWithResponseStream` only |
+| Bootstrap | Application built from the repo at first boot |
+
+The stack has been torn down with `cdk destroy` to avoid ongoing charges.
+
 ## Verification
 
 Four credentials are collected before any order data is read: company email
@@ -89,5 +129,15 @@ See `docs\retrieval_comparison.md`.
 
 ## Cost
 
-Everything runs locally except Bedrock calls, which are billed per token.
-Nothing runs on a schedule and nothing is billed hourly.
+Total spend for the entire assignment: **USD 0.53**.
+
+| Item | Cost |
+| --- | --- |
+| Claude Haiku 4.5 | $0.46 |
+| Cohere embeddings | $0.01 |
+| EC2 t3.micro | $0.01 |
+| Tax | $0.05 |
+
+Input to output token ratio was 28 to 1, because every tool round replays the
+full conversation history. NAT Gateway and OpenSearch Serverless were avoided
+by design, since both bill hourly with a floor.
